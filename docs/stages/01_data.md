@@ -1,4 +1,4 @@
-# Data: NBA shot attempts (nba_api `shotchartdetail`)
+# Stage 1: Data collection (NBA shot attempts, game logs, Kaggle Shot Logs)
 
 This document describes the raw shot data, how it was downloaded, and how it was
 turned into `data/interim/shots.parquet`. Data files are not committed to git;
@@ -25,7 +25,7 @@ they are fully reproducible with the scripts listed below.
 | `season_type_all_star` | `"Regular Season"` | playoffs excluded |
 | `context_measure_simple` | `"FGA"` | the default `"PTS"` returns **made shots only** |
 
-## 2. Download (`scripts/fetch_shots.py`)
+## 2. Download (`scripts/00_data/01_fetch_shots.py`)
 
 ### 2.1 Why one request per team and season
 
@@ -53,7 +53,7 @@ shots are in the opponent's file. The content is exactly the API response plus
 one added column, `SEASON`. No filtering, type conversion or feature engineering
 happens at this stage.
 
-## 3. Processing to interim (`scripts/merge_shots.py`)
+## 3. Processing to interim (`scripts/00_data/02_merge_shots.py`)
 
 1. Read all 360 raw files and concatenate them row-wise (no aggregation, no rows
    or columns dropped).
@@ -86,6 +86,46 @@ Every full season has 1,230 games (30 teams x 82 / 2). The two exceptions are
 expected: 2019-20 was suspended by COVID-19 and finished in the Orlando bubble
 (1,059 games), and 2020-21 was shortened to 72 games per team (1,080 games).
 
+## 3a. Game logs and cross-check (`scripts/00_data/03_fetch_games.py`, `scripts/00_data/04_validate_shots.py`)
+
+`03_fetch_games.py` downloads official team box scores with the `leaguegamelog`
+endpoint (`season_type_all_star="Regular Season"`, `player_or_team_abbreviation="T"`),
+one request per season, to `data/raw/games/games_{SEASON}.parquet`. Each game
+appears twice (one row per team): 2,460 rows per full season, 2,118 in 2019-20
+and 2,160 in 2020-21. Besides the check below, these files provide free throws
+and final scores for the game simulation.
+
+`04_validate_shots.py` aggregates the shot data per team and game (FGA, FGM,
+3PA, 3PM) and compares it with the box scores:
+
+- every team-game exists in both sources (0 unmatched),
+- **99.99% of team-games match exactly** on all four counts,
+- 4 of 28,878 team-games differ by exactly one field goal attempt, with the
+  number of made shots identical (2022-23: 1, 2023-24: 2, 2025-26: 1). These
+  are single missed attempts recorded differently in the two official sources;
+  their effect on the data is negligible and they are kept as is.
+
+## 3b. Kaggle NBA Shot Logs 2014-15 (`scripts/00_data/05_prepare_kaggle.py`)
+
+Source: Kaggle dataset `dansbecker/nba-shot-logs`, downloaded with the Kaggle CLI
+to `data/raw/kaggle/shot_logs.csv` (kept unchanged). It adds per-shot tracking
+context missing from nba_api: closest defender and distance (`CLOSE_DEF_DIST`),
+shot clock, dribbles and touch time. It covers only part of the 2014-15 season
+and is used for a comparison model, not as the main data.
+
+`05_prepare_kaggle.py` saves `data/interim/kaggle_shot_logs.parquet` with two
+changes only: `GAME_ID` is zero-padded to the 10-character nba_api format, and
+`GAME_DATE` is parsed from `MATCHUP`. No rows are removed and no values are
+cleaned at this stage. Check results: 128,069 shots, 21 columns, 904 games (of 1,230) played
+2014-10-28 to 2015-03-04; all 904 games exist in the nba_api 2014-15 data.
+Known quality issues: 5,567 missing `SHOT_CLOCK` values and 312 negative
+`TOUCH_TIME` values. Kaggle has about 142 shots per game versus 167 in nba_api,
+so it does not contain every shot of the games it covers; matching individual
+shots between the sources is part of Etap 2.
+
+Leakage columns (`W`, `FINAL_MARGIN`, `PTS`,
+`SHOT_RESULT`, `FGM`) are dropped later, before modelling.
+
 ## 4. Columns
 
 25 columns, one row per field goal attempt.
@@ -116,7 +156,7 @@ expected: 2019-20 was suspended by COVID-19 and finished in the Orlando bubble
 | `GAME_DATE` | str | Game date as `YYYYMMDD`. |
 | `HTM` | str | Home team abbreviation. |
 | `VTM` | str | Visiting team abbreviation. |
-| `SEASON` | str | Season, e.g. `2014-15`. **Added by `fetch_shots.py`**, not part of the API response. |
+| `SEASON` | str | Season, e.g. `2014-15`. **Added by `01_fetch_shots.py`**, not part of the API response. |
 
 ## 5. Known limitations
 
@@ -151,6 +191,10 @@ expected: 2019-20 was suspended by COVID-19 and finished in the Orlando bubble
 ```bash
 source .venv/bin/activate
 pip install -r requirements.txt
-python scripts/fetch_shots.py   # ~15 min, resumable
-python scripts/merge_shots.py   # writes data/interim/shots.parquet + prints checks
+python scripts/00_data/01_fetch_shots.py      # ~15 min, resumable
+python scripts/00_data/02_merge_shots.py      # writes data/interim/shots.parquet + prints checks
+python scripts/00_data/03_fetch_games.py      # team box scores, 12 requests
+python scripts/00_data/04_validate_shots.py   # shots vs box scores
+kaggle datasets download -d dansbecker/nba-shot-logs -p data/raw/kaggle --unzip
+python scripts/00_data/05_prepare_kaggle.py
 ```
