@@ -6,6 +6,7 @@ and Monte Carlo game simulation. Engineering thesis, AGH.
 ## Setup
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+pip install -e .   # the xpts package in src/
 
 ## Data pipeline
 Run in order from the repo root (details in docs/stages/01_data.md):
@@ -17,5 +18,10 @@ Run in order from the repo root (details in docs/stages/01_data.md):
 | `scripts/00_data/03_fetch_games.py` | Download team box scores (leaguegamelog) | `data/raw/games/` (12 files) |
 | `scripts/00_data/04_validate_shots.py` | Compare shot counts with box scores | printed report |
 | `scripts/00_data/05_prepare_kaggle.py` | Check Kaggle Shot Logs, align GAME_ID with nba_api | `data/interim/kaggle_shot_logs.parquet` |
+| `scripts/00_data/06_fetch_pullup_tracking.py` | Download tracking pull-up totals per team-season (label drift check, Stage 3) | `data/raw/tracking/pullup_team.parquet` |
 
 `scripts/00_data/probes/` holds one-off API checks that motivated the per-team download.
+
+## Models
+Baseline models (null, zone, spline logistic regression) and their validation: `src/xpts/`,
+`notebooks/04_baselines.ipynb`, details in docs/stages/03_baselines.md.
