@@ -6,3 +6,4 @@ tqdm>=4.66
 ipykernel>=6.29
 matplotlib>=3.9
 kaggle>=1.6
+scikit-learn>=1.5

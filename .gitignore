@@ -18,17 +18,7 @@ kaggle.json
 *:Zone.Identifier
 
 # LaTeX build files
-thesis/*.aux
-thesis/*.log
-thesis/*.out
-thesis/*.toc
-thesis/*.lof
-thesis/*.lot
-thesis/*.bbl
-thesis/*.bcf
-thesis/*.blg
-thesis/*.run.xml
-thesis/*.fls
-thesis/*.fdb_latexmk
-thesis/*.synctex.gz
-thesis/main.pdf
+thesis/
+
+*.egg-info
+
