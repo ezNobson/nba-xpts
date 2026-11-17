@@ -4,7 +4,7 @@ import pandas as pd
 from scipy import sparse
 from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
 from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.preprocessing import SplineTransformer
 
 ZONE_COLS = ["SHOT_ZONE_BASIC", "SHOT_ZONE_AREA"]
@@ -97,7 +97,49 @@ class ShotFeatures(TransformerMixin, BaseEstimator):
         return np.array(spl + FLAG_COLS + ["last_second"] + ang)
 
 
-def make_logit(C: float = 1.0, group_col: str = "action_group", angle_knots=None, knots=DIST_KNOTS) -> Pipeline:
-    """Logistic regression on ShotFeatures (L2 penalty, strength 1 / C)."""
-    return Pipeline([("features", ShotFeatures(knots=knots, group_col=group_col, angle_knots=angle_knots)),
-                     ("logit", LogisticRegression(C=C, max_iter=2000))])
+# Knots of the splines of secs_since_prev (s): dense in the first seconds (putbacks, fast breaks).
+SECS_KNOTS = [0, 1, 2, 3, 4, 6, 8, 12, 16, 24]
+
+
+class ContextFeatures(TransformerMixin, BaseEstimator):
+    """Sparse design matrix of the play-by-play context features (same idea as ShotFeatures).
+
+    - B-splines of secs_since_prev (clipped to the last knot), one curve and intercept per prev_event;
+    - score_margin (clipped to +-30, in units of 10 points), its absolute value, and is_home.
+    Shots without context (no play-by-play match) get zeros.
+    """
+
+    def __init__(self, knots=SECS_KNOTS, degree: int = 3):
+        self.knots = knots
+        self.degree = degree
+
+    def _secs(self, X):
+        return X[["secs_since_prev"]].fillna(0).clip(0, self.knots[-1]).to_numpy()
+
+    def fit(self, X: pd.DataFrame, y=None):
+        self.spline_ = SplineTransformer(knots=np.asarray(self.knots, dtype=float).reshape(-1, 1),
+                                         degree=self.degree, extrapolation="constant", sparse_output=True)
+        self.spline_.fit(self._secs(X))
+        self.groups_ = np.array(sorted(X["prev_event"].dropna().astype(str).unique()))
+        self.n_basis_ = self.spline_.n_features_out_
+        return self
+
+    def transform(self, X: pd.DataFrame):
+        s = self.spline_.transform(self._secs(X)).tocoo()
+        g = pd.Categorical(X["prev_event"].astype(object), categories=self.groups_).codes.astype(np.int64)[s.row]
+        keep = g >= 0
+        by_group = sparse.csr_matrix(
+            (s.data[keep], (s.row[keep], g[keep] * self.n_basis_ + s.col[keep])),
+            shape=(len(X), len(self.groups_) * self.n_basis_))
+        margin = X["score_margin"].fillna(0).clip(-30, 30).to_numpy() / 10
+        dense = np.column_stack([margin, np.abs(margin), X["is_home"].fillna(0).to_numpy(dtype=float)])
+        return sparse.hstack([by_group, sparse.csr_matrix(dense)], format="csr")
+
+
+def make_logit(C: float = 1.0, group_col: str = "action_group", angle_knots=None, knots=DIST_KNOTS,
+               context: bool = False) -> Pipeline:
+    """Logistic regression on ShotFeatures (L2 penalty, strength 1 / C); context=True adds ContextFeatures."""
+    features = ShotFeatures(knots=knots, group_col=group_col, angle_knots=angle_knots)
+    if context:
+        features = FeatureUnion([("shot", features), ("context", ContextFeatures())])
+    return Pipeline([("features", features), ("logit", LogisticRegression(C=C, max_iter=2000))])
