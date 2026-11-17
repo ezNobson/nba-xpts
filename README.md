@@ -21,6 +21,7 @@ Run in order from the repo root (details in docs/stages/01_data.md):
 | `scripts/00_data/06_fetch_pullup_tracking.py` | Download tracking pull-up totals per team-season (label drift check, Stage 3) | `data/raw/tracking/pullup_team.parquet` |
 | `scripts/00_data/07_fetch_pbp.py` | Download play-by-play events per season (nba_data archive, Stage 4) | `data/raw/pbp/` (11 files) |
 | `scripts/00_data/08_fetch_pbp_v3.py` | Download play-by-play in the v3 format and convert to v2 columns (hold-out 2025-26) | `data/raw/pbp/pbp_2025-26.parquet` |
+| `scripts/00_data/09_fetch_positions.py` | Download the listed position of every player (Stage 5 priors) | `data/raw/players/positions.parquet` |
 | `scripts/02_features/06_build_pbp_features.py` | Per-shot game-context features from play-by-play (pre-shot events only) | `data/processed/shots_context.parquet` |
 
 `scripts/00_data/probes/` holds one-off API checks that motivated the per-team download.
@@ -31,3 +32,8 @@ Baseline models (null, zone, spline logistic regression) and their validation: `
 
 Main model (LightGBM with play-by-play context), calibration, SHAP, MLP comparison and the Kaggle tracking
 experiment: `notebooks/05_lightgbm.ipynb` to `08_kaggle_defence.ipynb`, final hold-out evaluation in `09_holdout.ipynb`, details in docs/stages/04_main_model.md.
+
+## Players
+Shot making SM = (PTS - xPTS) / n from out-of-sample predictions, empirical Bayes shrinkage, prior variants
+(league, position, previous season) tested by predicting the second half of a season, Stephen Curry case study:
+`src/xpts/players.py`, `notebooks/10_players.ipynb`, details in docs/stages/05_players.md.
