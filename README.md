@@ -41,4 +41,6 @@ Shot making SM = (PTS - xPTS) / n from out-of-sample predictions, empirical Baye
 ## Simulation
 Retrospective Monte Carlo of played games (real shots and free throws, field goal results drawn from out-of-sample p,
 shots grouped into putback chains, exact convolution as a check), luck percentile, calibration of P(win), expected vs
-actual wins: `src/xpts/simulation.py`, `notebooks/11_simulation.ipynb`, details in docs/stages/06_simulation.md.
+actual wins: `src/xpts/simulation.py`, `notebooks/11_simulation.ipynb`. Pre-game forecast of 2025-26 by Monte Carlo from
+team shot profiles, compared with Elo and simple baselines: `src/xpts/forecast.py`, `notebooks/12_forecast.ipynb`.
+Details in docs/stages/06_simulation.md.

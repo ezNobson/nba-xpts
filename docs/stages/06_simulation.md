@@ -71,12 +71,43 @@ more completely (putback share 11.2%). Not tested.
 - Shot counts and turnovers fixed; generic putback after a simulated miss; real offensive rebounds after real misses
   are kept as they happened.
 - v2 vs v3 play-by-play difference in putback detection (hold-out).
-- Stage 6b: pre-game forecast of 2025-26 with shot profiles of both teams, compared with simple baselines.
 
-## 6. Reproduction
+## 6. Stage 6b: pre-game forecast (`notebooks/12_forecast.ipynb`, `src/xpts/forecast.py`)
+
+- Profile of a team = its previous K games (may reach into the previous season): chains per game, pools of first shots
+  and putbacks (p, value), putback rate, FTM per game, team shot making shrunk with k = 1,659 shots (EB on 2015-16 to
+  2022-23: tau 0.032 attack, 0.025 defence); the same allowed to opponents. Attack of A and defence of B combined
+  additively around the previous season's league mean. Expected chains and FTM (stochastic rounding: independent random
+  counts made the margin too wide), shots drawn from the pools, p + (SM_A + SM_allowed_B)/v, home advantage h.
+- Development 2023-24 and 2024-25: K = 40 (from 10, 20, 40, 82), h = 1.97 points; calibrated version = logistic
+  regression of the result on the expected margin. Baselines: home constant, win share and point differential of the
+  last K games (logistic, K chosen the same way), Elo (FiveThirtyEight-style, K = 20, home +100, carry-over 0.75; box
+  scores from 2014-15, neutral-site games without a home team skipped).
+- Development log loss: point differential 0.6156, win share 0.6171, Elo 0.6286, shot model 0.6306.
+
+Hold-out 2025-26 (1,225 games, run once):
+
+| Method | Log loss | Brier | Accuracy |
+|---|---|---|---|
+| Shot model Monte Carlo | 0.6125 | 0.2116 | 0.662 |
+| Shot model, calibrated | 0.6109 | 0.2107 | 0.660 |
+| Point differential (40 games) | 0.6088 | 0.2097 | 0.682 |
+| Win share (40 games) | 0.6165 | 0.2132 | 0.675 |
+| Elo | 0.6178 | 0.2136 | 0.667 |
+| Home team | 0.6875 | 0.2472 | 0.554 |
+| Retrospective with real shots (not a forecast) | 0.5759 | 0.1966 | 0.697 |
+
+- Paired bootstrap (games): calibrated - Elo -0.0070 [-0.0222; 0.0093], - point differential +0.0021 [-0.0050; 0.0095],
+  - home -0.077 [-0.099; -0.055]. No significant difference to the standard methods.
+- Logistic regression on Elo + shot model (descriptive, in-sample): shot model coefficient 0.48, LR test p = 0.0008.
+- Shot model well calibrated, Elo overrates the home team; shot model best in October-November.
+- Limits: no injuries, trades or rest; expected possessions and FT; additive defence; one hold-out season.
+  Next step: combine the shot model with a results-based rating.
+
+## 7. Reproduction
 
 ```
 # needs oos_predictions.parquet (06_main_model), holdout_predictions.parquet (09_holdout),
 # shots_context.parquet (06_build_pbp_features), positions (09_fetch_positions)
-# notebook: 11_simulation (about 25 minutes on CPU)
+# notebooks: 11_simulation (about 25 minutes on CPU), 12_forecast (about 20 minutes)
 ```
