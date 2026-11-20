@@ -126,3 +126,25 @@ def cluster_bootstrap(df: pd.DataFrame, loss_cols, weight: str, base: str, clust
         rows[c] = {"loss": g[c].sum() / g["_w"].sum(), "diff": (g[c].sum() - g[base].sum()) / g["_w"].sum(),
                    "ci_low": np.quantile(boot, 0.025), "ci_high": np.quantile(boot, 0.975)}
     return pd.DataFrame(rows).T
+
+
+def season_estimates(t: pd.DataFrame, positions: pd.Series) -> pd.DataFrame:
+    """Shrunk shot making per season with the previous-season prior (league prior in the first season).
+
+    t is player_table(shots) (one row per season and player), positions maps PLAYER_ID to G/F/C.
+    Each season uses only its own shots and the estimates of the season before.
+    """
+    seasons = sorted(t["SEASON"].unique())
+    out, prev = [], None
+    for season in seasons:
+        g = t[t["SEASON"] == season].copy()
+        g["POS"] = g["PLAYER_ID"].map(positions)
+        designs = prior_designs(g, prev)
+        X = designs["previous"] if prev is not None else designs["league"]
+        f = fit_prior(g["sm"], g["s2"], X)
+        g["prior"] = X @ f["beta"]
+        g["theta"], g["post_var"] = shrink(g["sm"], g["s2"], g["prior"], f["tau2"])
+        f0 = fit_prior(g["sm"], g["s2"])  # the previous-season input is the league-prior estimate (as in 10_players)
+        prev = pd.Series(shrink(g["sm"], g["s2"], f0["beta"][0], f0["tau2"])[0], index=g["PLAYER_ID"])
+        out.append(g)
+    return pd.concat(out, ignore_index=True)

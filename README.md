@@ -37,3 +37,8 @@ experiment: `notebooks/05_lightgbm.ipynb` to `08_kaggle_defence.ipynb`, final ho
 Shot making SM = (PTS - xPTS) / n from out-of-sample predictions, empirical Bayes shrinkage, prior variants
 (league, position, previous season) tested by predicting the second half of a season, Stephen Curry case study:
 `src/xpts/players.py`, `notebooks/10_players.ipynb`, details in docs/stages/05_players.md.
+
+## Simulation
+Retrospective Monte Carlo of played games (real shots and free throws, field goal results drawn from out-of-sample p,
+shots grouped into putback chains, exact convolution as a check), luck percentile, calibration of P(win), expected vs
+actual wins: `src/xpts/simulation.py`, `notebooks/11_simulation.ipynb`, details in docs/stages/06_simulation.md.
